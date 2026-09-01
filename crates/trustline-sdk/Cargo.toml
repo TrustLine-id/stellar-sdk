@@ -1,0 +1,24 @@
+[package]
+name = "trustline-sdk"
+description = "Soroban SDK for protecting contracts with Trustline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["stellar", "soroban", "trustline", "validation", "compliance"]
+categories = ["cryptography::cryptocurrencies", "no-std"]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+
+[features]
+testutils = ["soroban-sdk/testutils"]
