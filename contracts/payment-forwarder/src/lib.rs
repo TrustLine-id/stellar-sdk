@@ -2,11 +2,11 @@
 
 //! Payment Forwarder example.
 //!
-//! Guards native / SEP-41 transfers with Trustline `require_trustline`.
+//! Guards native / SEP-41 transfers with Trustline `require_trustline_addrs!`.
 
-use soroban_sdk::{contract, contractimpl, token, xdr::ToXdr, Address, Bytes, Env};
+use soroban_sdk::{contract, contractimpl, token, Address, Env};
 use trustline_sdk::{
-    encode_call_data, require_trustline_addrs, set_validation_engine,
+    require_trustline_addrs, set_validation_engine,
     validation_engine as read_validation_engine,
 };
 
@@ -24,32 +24,10 @@ impl PaymentForwarder {
         read_validation_engine(&env)
     }
 
-    /// Intent `data` for `pay_native` (frontend / oracle prevalidation).
-    ///
-    /// Includes `native_token` so the SAC used for the transfer is bound to the
-    /// proof (native amount is an explicit argument, not ambient call value).
-    pub fn pay_native_intent_data(
-        env: Env,
-        native_token: Address,
-        destination: Address,
-        amount: i128,
-    ) -> Bytes {
-        let args = (native_token, destination, amount).to_xdr(&env);
-        encode_call_data(&env, "pay_native", &args)
-    }
-
-    /// Intent `data` for `pay_tokens`.
-    pub fn pay_tokens_intent_data(
-        env: Env,
-        destination: Address,
-        token: Address,
-        amount: i128,
-    ) -> Bytes {
-        let args = (destination, token, amount).to_xdr(&env);
-        encode_call_data(&env, "pay_tokens", &args)
-    }
-
     /// Pay via a Stellar Asset Contract (typically the native XLM SAC).
+    ///
+    /// Intent `data` binds `native_token` into the proof (native amount is an
+    /// explicit argument, not ambient call value).
     pub fn pay_native(
         env: Env,
         sender: Address,
@@ -60,14 +38,13 @@ impl PaymentForwarder {
         sender.require_auth();
         assert!(amount > 0, "Invalid amount");
 
-        let data = Self::pay_native_intent_data(
-            env.clone(),
-            native_token.clone(),
-            destination.clone(),
+        require_trustline_addrs!(
+            env,
+            sender,
             amount,
+            "pay_native"(native_token, destination, amount),
+            [destination, native_token],
         );
-        let addresses = soroban_sdk::vec![&env, destination.clone(), native_token.clone()];
-        require_trustline_addrs(&env, &sender, amount, &data, &addresses);
 
         token::Client::new(&env, &native_token).transfer(&sender, &destination, &amount);
     }
@@ -83,10 +60,13 @@ impl PaymentForwarder {
         sender.require_auth();
         assert!(amount > 0, "Invalid amount");
 
-        let data =
-            Self::pay_tokens_intent_data(env.clone(), destination.clone(), token.clone(), amount);
-        let addresses = soroban_sdk::vec![&env, destination.clone(), token.clone()];
-        require_trustline_addrs(&env, &sender, 0, &data, &addresses);
+        require_trustline_addrs!(
+            env,
+            sender,
+            0,
+            "pay_tokens"(destination, token, amount),
+            [destination, token],
+        );
 
         token::Client::new(&env, &token).transfer(&sender, &destination, &amount);
     }

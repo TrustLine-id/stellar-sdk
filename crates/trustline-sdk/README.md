@@ -13,8 +13,8 @@ soroban-sdk = "27"
 ```
 
 ```rust
-use soroban_sdk::{Address, Bytes, Env};
-use trustline_sdk::{encode_call_data, require_trustline, set_validation_engine};
+use soroban_sdk::{Address, Env};
+use trustline_sdk::{require_trustline, set_validation_engine};
 
 pub fn __constructor(env: Env, validation_engine: Address) {
     set_validation_engine(&env, &validation_engine);
@@ -22,12 +22,23 @@ pub fn __constructor(env: Env, validation_engine: Address) {
 
 pub fn transfer(env: Env, sender: Address, amount: i128) {
     sender.require_auth();
-    let data = encode_call_data(&env, "transfer", &Bytes::new(&env));
-    require_trustline(&env, &sender, amount, &data);
+    require_trustline!(env, sender, amount, "transfer"());
 }
 ```
 
 Deploy a Validation Engine instance separately ([stellar-validation-engine](https://github.com/TrustLine-id/stellar-validation-engine)), then pass its contract id to `set_validation_engine`.
+
+Use `require_trustline_addrs!` when recipients / tokens must be screened:
+
+```rust
+require_trustline_addrs!(
+    env, sender, amount,
+    "transfer_to"(recipient),
+    [recipient],
+);
+```
+
+Use `require_trustline_adv!` when you need an explicit `ValidationMode` (today only `Dapp`).
 
 ## License
 

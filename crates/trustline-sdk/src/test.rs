@@ -2,7 +2,7 @@
 
 use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env};
 
-use crate::{encode_call_data, final_tx_id, intent_id, ValidationMode};
+use crate::{encode_call_data, encode_intent, final_tx_id, intent_id, ValidationMode};
 
 #[test]
 fn intent_id_is_deterministic() {
@@ -108,4 +108,18 @@ fn encode_call_data_changes_when_name_or_args_change() {
     let base = encode_call_data(&env, "pay_native", &args);
     assert_ne!(base, encode_call_data(&env, "pay_tokens", &args));
     assert_ne!(base, encode_call_data(&env, "pay_native", &other_args));
+}
+
+#[test]
+fn encode_intent_matches_manual_xdr_tuple() {
+    use soroban_sdk::xdr::ToXdr;
+
+    let env = Env::default();
+    let a = Address::generate(&env);
+    let b = Address::generate(&env);
+    let amount: i128 = 10_000_000;
+
+    let via_helper = encode_intent(&env, "pay_native", (a.clone(), b.clone(), amount));
+    let manual = encode_call_data(&env, "pay_native", &(a, b, amount).to_xdr(&env));
+    assert_eq!(via_helper, manual);
 }

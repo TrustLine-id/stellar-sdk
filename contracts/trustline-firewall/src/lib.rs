@@ -14,10 +14,8 @@
 //! no catch-all fallback. Configure the target so privileged entrypoints
 //! require this firewall address (e.g. `admin = firewall`).
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, xdr::ToXdr, Address, Bytes, Env, Symbol, Val, Vec,
-};
-use trustline_sdk::{encode_call_data, require_trustline, set_validation_engine};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Val, Vec};
+use trustline_sdk::{require_trustline, set_validation_engine};
 
 mod events;
 use events::{
@@ -93,8 +91,7 @@ impl TrustlineFirewall {
     /// Update target — owner only, Trustline-protected.
     pub fn set_target(env: Env, new_target: Address) {
         let owner = Self::require_owner(&env);
-        let data = Self::set_target_intent_data(env.clone(), new_target.clone());
-        require_trustline(&env, &owner, 0, &data);
+        require_trustline!(env, owner, 0, "set_target"(new_target));
         env.storage().instance().set(&DataKey::Target, &new_target);
         bump_instance(&env);
         FirewallTargetUpdated { new_target }.publish(&env);
@@ -103,8 +100,7 @@ impl TrustlineFirewall {
     /// Transfer firewall admin — owner only, Trustline-protected.
     pub fn set_owner(env: Env, new_owner: Address) {
         let owner = Self::require_owner(&env);
-        let data = Self::set_owner_intent_data(env.clone(), new_owner.clone());
-        require_trustline(&env, &owner, 0, &data);
+        require_trustline!(env, owner, 0, "set_owner"(new_owner));
         env.storage().instance().set(&DataKey::Owner, &new_owner);
         bump_instance(&env);
         FirewallOwnerUpdated {
@@ -117,8 +113,7 @@ impl TrustlineFirewall {
     /// Add or remove an operator allowed on the protected `forward` path.
     pub fn set_operator(env: Env, account: Address, is_operator: bool) {
         let owner = Self::require_owner(&env);
-        let data = Self::set_operator_intent_data(env.clone(), account.clone(), is_operator);
-        require_trustline(&env, &owner, 0, &data);
+        require_trustline!(env, owner, 0, "set_operator"(account, is_operator));
         Self::set_operator_flag(&env, &account, is_operator);
         bump_instance(&env);
         FirewallOperatorUpdated {
@@ -131,8 +126,7 @@ impl TrustlineFirewall {
     /// Allow or disallow unrestricted initiators on `forward`.
     pub fn set_public_forward(env: Env, enabled: bool) {
         let owner = Self::require_owner(&env);
-        let data = Self::set_public_forward_intent_data(env.clone(), enabled);
-        require_trustline(&env, &owner, 0, &data);
+        require_trustline!(env, owner, 0, "set_public_forward"(enabled));
         env.storage()
             .instance()
             .set(&DataKey::PublicForward, &enabled);
@@ -140,44 +134,16 @@ impl TrustlineFirewall {
         FirewallPublicForwardUpdated { enabled }.publish(&env);
     }
 
-    /// Pure helper: intent `data` for `set_target`.
-    pub fn set_target_intent_data(env: Env, new_target: Address) -> Bytes {
-        encode_call_data(&env, "set_target", &new_target.to_xdr(&env))
-    }
-
-    /// Pure helper: intent `data` for `set_owner`.
-    pub fn set_owner_intent_data(env: Env, new_owner: Address) -> Bytes {
-        encode_call_data(&env, "set_owner", &new_owner.to_xdr(&env))
-    }
-
-    /// Pure helper: intent `data` for `set_operator`.
-    pub fn set_operator_intent_data(env: Env, account: Address, is_operator: bool) -> Bytes {
-        let payload = (account, is_operator).to_xdr(&env);
-        encode_call_data(&env, "set_operator", &payload)
-    }
-
-    /// Pure helper: intent `data` for `set_public_forward`.
-    pub fn set_public_forward_intent_data(env: Env, enabled: bool) -> Bytes {
-        encode_call_data(&env, "set_public_forward", &enabled.to_xdr(&env))
-    }
-
-    /// Pure helper: builds the `data` blob used in the Trustline intent for `forward`.
-    pub fn forward_intent_data(env: Env, fn_name: Symbol, args: Vec<Val>) -> Bytes {
-        let payload = (fn_name, args).to_xdr(&env);
-        encode_call_data(&env, "forward", &payload)
-    }
-
     /// Forward a call to `target` after Trustline validation.
     ///
-    /// `initiator` is the business actor for Trustline (`require_trustline` sender) and
+    /// `initiator` is the business actor for Trustline (`require_trustline!` sender) and
     /// must authorize this call. When `public_forward` is false, `initiator` must also
     /// be registered as an operator.
     pub fn forward(env: Env, initiator: Address, fn_name: Symbol, args: Vec<Val>) -> Val {
         Self::require_forward_initiator(&env, &initiator);
         let target: Address = env.storage().instance().get(&DataKey::Target).unwrap();
 
-        let data = Self::forward_intent_data(env.clone(), fn_name.clone(), args.clone());
-        require_trustline(&env, &initiator, 0, &data);
+        require_trustline!(env, initiator, 0, "forward"(fn_name, args));
 
         bump_instance(&env);
         env.invoke_contract(&target, &fn_name, args)

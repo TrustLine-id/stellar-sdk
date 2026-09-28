@@ -25,16 +25,13 @@ impl TestTrustlinedClient {
     /// Guard with no arguments; `sender` must authorize the call.
     pub fn guarded_no_args(env: Env, sender: Address) {
         sender.require_auth();
-        let data = encode_call_data(&env, "guarded_no_args", &Bytes::new(&env));
-        require_trustline(&env, &sender, 0, &data);
+        require_trustline!(env, sender, 0, "guarded_no_args"());
     }
 
-    /// Guard with an additional target address.
+    /// Guard with an additional target address (screened via `addresses`, not intent `data`).
     pub fn guarded_with_address(env: Env, sender: Address, target: Address) {
         sender.require_auth();
-        let data = encode_call_data(&env, "guarded_with_address", &Bytes::new(&env));
-        let addresses = soroban_sdk::vec![&env, target];
-        require_trustline_addrs(&env, &sender, 0, &data, &addresses);
+        require_trustline_addrs!(env, sender, 0, "guarded_with_address"(), [target]);
     }
 
     /// Returns whether the call would pass validation without aborting.

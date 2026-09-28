@@ -5,6 +5,22 @@ All notable changes to the **`trustline-sdk`** crate are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `require_trustline!` / `require_trustline_addrs!` / `require_trustline_adv!` macros — encode intent `data` from an action name + args, then call the VE in one step.
+- `encode_intent` helper (`encode_call_data` + `ToXdr` args).
+
+### Changed
+
+- Low-level helpers renamed to `require_trustline_raw` / `require_trustline_addrs_raw` / `require_trustline_adv_raw` (pre-built `data` blob).
+- Example contracts (`payment-forwarder`, `trustline-firewall`, `test-trustlined-client`) no longer export `*_intent_data` helpers; the backend rebuilds intent `data` from structured `functionPrototype` + args.
+
+### Compatibility
+
+- **`soroban-sdk` 27.x** (Stellar Protocol 23 / Soroban v2 WASM target `wasm32v1-none`).
+
 ## [0.1.0] - 2026-08-28
 
 ### Added

@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-//! Integration tests for `require_trustline` / `check_trustline_status` wiring.
+//! Integration tests for `require_trustline!` / `check_trustline_status` wiring.
 //!
 //! Integrators pass an existing Validation Engine instance via
 //! `set_validation_engine` (see `uses_provided_validation_engine_directly`).

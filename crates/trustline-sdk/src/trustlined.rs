@@ -6,7 +6,7 @@
 //! - stores / uses the configured VE address when using [`set_validation_engine`]
 //! - performs a single CPI into the Validation Engine
 
-use soroban_sdk::{symbol_short, Address, Bytes, Env, Symbol, Vec};
+use soroban_sdk::{symbol_short, xdr::ToXdr, Address, Bytes, Env, Symbol, Vec};
 
 use crate::client::ValidationEngineClient;
 use crate::types::ValidationMode;
@@ -34,15 +34,19 @@ fn protocol(env: &Env) -> Address {
     env.current_contract_address()
 }
 
-/// Enforcing call — panics if the intent is not approved.
-pub fn require_trustline(env: &Env, sender: &Address, value: i128, data: &Bytes) {
+/// Enforcing call with a pre-built `data` blob — panics if not approved.
+///
+/// Prefer `require_trustline!` so the action name + args stay next to the check.
+pub fn require_trustline_raw(env: &Env, sender: &Address, value: i128, data: &Bytes) {
     let ve = validation_engine(env);
     let client = ValidationEngineClient::new(env, &ve);
     client.require_trustline(&protocol(env), sender, &value, data);
 }
 
-/// Enforcing call with an address list for sanctions / policy.
-pub fn require_trustline_addrs(
+/// Enforcing call with a pre-built `data` blob and an address list for sanctions / policy.
+///
+/// Prefer `require_trustline_addrs!` when you can name the action inline.
+pub fn require_trustline_addrs_raw(
     env: &Env,
     sender: &Address,
     value: i128,
@@ -54,8 +58,10 @@ pub fn require_trustline_addrs(
     client.require_trustline_addrs(&protocol(env), sender, &value, data, addresses);
 }
 
-/// Advanced enforcing call with explicit [`ValidationMode`].
-pub fn require_trustline_adv(
+/// Advanced enforcing call with explicit [`ValidationMode`] and a pre-built `data` blob.
+///
+/// Prefer `require_trustline_adv!` when you can name the action inline.
+pub fn require_trustline_adv_raw(
     env: &Env,
     mode: ValidationMode,
     sender: &Address,
@@ -98,4 +104,111 @@ pub fn encode_call_data(env: &Env, fn_name: &str, args: &Bytes) -> Bytes {
     out.append(&name);
     out.append(args);
     out
+}
+
+/// `encode_call_data(fn_name, args.to_xdr())` — preferred when args are typed values.
+///
+/// Prefer `require_trustline!` / `require_trustline_addrs!` / `require_trustline_adv!` so the
+/// action name + args stay next to the Trustline check. The backend builds the same `data`
+/// from structured `functionPrototype` + positional `args`.
+pub fn encode_intent(env: &Env, fn_name: &str, args: impl ToXdr) -> Bytes {
+    encode_call_data(env, fn_name, &args.to_xdr(env))
+}
+
+/// `encode_intent` + `require_trustline_raw` in one step.
+///
+/// ```ignore
+/// require_trustline!(env, owner, 0, "set_target"(new_target));
+/// require_trustline!(env, sender, 0, "noop"());
+/// ```
+#[macro_export]
+macro_rules! require_trustline {
+    (
+        $env:expr,
+        $sender:expr,
+        $value:expr,
+        $action:literal ( $($arg:ident),* $(,)? )
+        $(,)?
+    ) => {{
+        let __trustline_data = $crate::__encode_intent_args!($env, $action; $($arg),*);
+        $crate::require_trustline_raw(&$env, &$sender, $value, &__trustline_data);
+    }};
+}
+
+/// `encode_intent` + `require_trustline_addrs_raw` in one step.
+///
+/// ```ignore
+/// require_trustline_addrs!(
+///     env, sender, amount,
+///     "pay_native"(native_token, destination, amount),
+///     [destination, native_token],
+/// );
+/// ```
+#[macro_export]
+macro_rules! require_trustline_addrs {
+    (
+        $env:expr,
+        $sender:expr,
+        $value:expr,
+        $action:literal ( $($arg:ident),* $(,)? ),
+        [ $($addr:ident),* $(,)? ]
+        $(,)?
+    ) => {{
+        let __trustline_data = $crate::__encode_intent_args!($env, $action; $($arg),*);
+        let __trustline_addrs = ::soroban_sdk::vec![&$env, $($addr.clone()),*];
+        $crate::require_trustline_addrs_raw(
+            &$env,
+            &$sender,
+            $value,
+            &__trustline_data,
+            &__trustline_addrs,
+        );
+    }};
+}
+
+/// `encode_intent` + `require_trustline_adv_raw` in one step.
+///
+/// ```ignore
+/// require_trustline_adv!(
+///     env, ValidationMode::Dapp, sender, amount,
+///     "pay_native"(native_token, destination, amount),
+///     [destination, native_token],
+/// );
+/// ```
+#[macro_export]
+macro_rules! require_trustline_adv {
+    (
+        $env:expr,
+        $mode:expr,
+        $sender:expr,
+        $value:expr,
+        $action:literal ( $($arg:ident),* $(,)? ),
+        [ $($addr:ident),* $(,)? ]
+        $(,)?
+    ) => {{
+        let __trustline_data = $crate::__encode_intent_args!($env, $action; $($arg),*);
+        let __trustline_addrs = ::soroban_sdk::vec![&$env, $($addr.clone()),*];
+        $crate::require_trustline_adv_raw(
+            &$env,
+            $mode,
+            &$sender,
+            $value,
+            &__trustline_data,
+            &__trustline_addrs,
+        );
+    }};
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __encode_intent_args {
+    ($env:expr, $action:literal; ) => {
+        $crate::encode_call_data(&$env, $action, &::soroban_sdk::Bytes::new(&$env))
+    };
+    ($env:expr, $action:literal; $arg:ident) => {
+        $crate::encode_intent(&$env, $action, $arg.clone())
+    };
+    ($env:expr, $action:literal; $($arg:ident),+) => {
+        $crate::encode_intent(&$env, $action, ($($arg.clone()),+))
+    };
 }

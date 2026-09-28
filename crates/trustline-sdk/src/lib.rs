@@ -13,9 +13,9 @@ pub mod types;
 pub use client::ValidationEngineClient;
 pub use intent::{final_tx_id, intent_id};
 pub use trustlined::{
-    check_status_addrs, check_trustline_status, encode_call_data, require_trustline,
-    require_trustline_addrs, require_trustline_adv, set_validation_engine, validation_engine,
-    VE_KEY,
+    check_status_addrs, check_trustline_status, encode_call_data, encode_intent,
+    require_trustline_addrs_raw, require_trustline_adv_raw, require_trustline_raw,
+    set_validation_engine, validation_engine, VE_KEY,
 };
 pub use types::ValidationMode;
 

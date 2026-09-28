@@ -10,7 +10,7 @@ A Rust / Soroban SDK for protecting Stellar smart contracts from unauthorized ac
 - ✅ **Sanctions Checking** — Verify addresses against an on-chain sanctions list
 - ✅ **Validation Modes** — Intent hash domain; currently **`Dapp` only** (extensible later)
 - ✅ **Address Verification** — Check sender and related addresses for compliance
-- ✅ **Thin CPI helpers** — `require_trustline` / `require_trustline_addrs` / status queries
+- ✅ **Thin CPI helpers** — `require_trustline!` / `require_trustline_addrs!` / `require_trustline_adv!` (+ low-level `*_raw`)
 - ✅ **SEP-41 / native SAC examples** — Payment Forwarder for guarded transfers
 - ✅ **Firewall gateway example** — Trustline Firewall with owner / operators / `public_forward` + generic `forward`
 - ✅ **Flexible Integration** — Point at any deployed Validation Engine instance
@@ -37,7 +37,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 Validation is performed through a small set of on-chain/off-chain components:
 
-- **Your contract** — Calls `trustline_sdk::require_trustline(...)` (or `require_trustline_addrs`) before sensitive operations. It holds the address of a **Validation Engine instance**.
+- **Your contract** — Calls `require_trustline!` / `require_trustline_addrs!` / `require_trustline_adv!` (or low-level `*_raw`) before sensitive operations. It holds the address of a **Validation Engine instance**.
 - **Validation Engine instance** — Per-client deployed contract (typically `TrustlineOracleVE`). Upgradeable via `upgrade(new_wasm_hash)` by the instance admin. Internally talks to the Trustline Registry and an optional sanctions list.
 - **Trustline Registry** — Shared Trustline-controlled contract (in [stellar-validation-engine](https://github.com/TrustLine-id/stellar-validation-engine), not this SDK): oracle allowlist + key → address resolution (e.g. sanctions lists).
 - **Trustline's Oracle backend** — Off-chain service that publishes proofs with `add_tx(oracle, …)` (`oracle.require_auth()` + `registry.is_oracle`).
@@ -53,9 +53,9 @@ You deploy (or reuse) a VE instance separately, then pass its address into your 
 
 ```rust
 #![no_std]
-use soroban_sdk::{contract, contractimpl, xdr::ToXdr, Address, Bytes, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env};
 use trustline_sdk::{
-    encode_call_data, require_trustline, require_trustline_addrs, set_validation_engine,
+    require_trustline, require_trustline_addrs, set_validation_engine,
 };
 
 #[contract]
@@ -69,16 +69,17 @@ impl MyContract {
 
     pub fn transfer(env: Env, sender: Address, amount: i128) {
         sender.require_auth();
-        let data = encode_call_data(&env, "transfer", &Bytes::new(&env));
-        require_trustline(&env, &sender, amount, &data);
+        require_trustline!(env, sender, amount, "transfer"());
         // … business logic …
     }
 
     pub fn transfer_to(env: Env, sender: Address, recipient: Address, amount: i128) {
         sender.require_auth();
-        let data = encode_call_data(&env, "transfer_to", &recipient.to_xdr(&env));
-        let addresses = soroban_sdk::vec![&env, recipient.clone()];
-        require_trustline_addrs(&env, &sender, amount, &data, &addresses);
+        require_trustline_addrs!(
+            env, sender, amount,
+            "transfer_to"(recipient),
+            [recipient],
+        );
         // … business logic …
     }
 }
@@ -98,21 +99,24 @@ Pass a previously deployed VE contract id into `__constructor` / `set_validation
 
 #### Recommended
 
-- Keep `data` canonical and stable for each protected method (it is part of the intent id). Prefer exporting an on-chain `*_intent_data` helper so the oracle/frontend can reuse the same bytes.
-- Include recipients / tokens in `require_trustline_addrs` when they matter to policy or sanctions.
+- Keep `data` canonical and stable for each protected method (it is part of the intent id). Prefer `require_trustline!` / `require_trustline_addrs!` with an inline action name so encoding stays next to the check; the backend rebuilds the same bytes from structured `functionPrototype` + args.
+- Include recipients / tokens in the `addresses` list of `require_trustline_addrs!` when they matter to policy or sanctions.
 - Prefer upgrading the **VE instance** over forking validation logic into the dapp WASM.
 
 ## API Reference
 
 ### Helpers
 
-`require_trustline*` and `check_*` serve different roles:
+`require_trustline*!` / `require_trustline_*_raw` and `check_*` serve different roles:
 
 | Helper | Role | Enforces? |
 |--------|------|-----------|
-| `require_trustline(...)` | Enforcing CPI — panics if not compliant | Yes |
-| `require_trustline_addrs(...)` | Same + address list for sanctions / policy | Yes |
-| `require_trustline_adv(...)` | Advanced + explicit `ValidationMode` | Yes |
+| `require_trustline!(…)` | Encode action + args, then enforce | Yes |
+| `require_trustline_addrs!(…)` | Same + address list for sanctions / policy | Yes |
+| `require_trustline_adv!(…)` | Same + explicit `ValidationMode` | Yes |
+| `require_trustline_raw(...)` | Enforce with a pre-built `data` blob | Yes |
+| `require_trustline_addrs_raw(...)` | Same + address list | Yes |
+| `require_trustline_adv_raw(...)` | Same + explicit `ValidationMode` | Yes |
 | `check_trustline_status(...)` | Query only | No |
 | `check_status_addrs(...)` | Query + addresses | No |
 
@@ -120,21 +124,53 @@ Use `require_*` to guard state-changing operations. Use `check_*` only when you 
 
 > Soroban limits contract export names to 32 bytes. Short names on the VE (`require_trustline_addrs`, `check_status_addrs`, …) cover the overloads — see the Validation Engine README.
 
-#### `require_trustline`
+#### `require_trustline!` / `require_trustline_addrs!` / `require_trustline_adv!`
 
-**Enforcing call.** Requires an approved intent for `sender` / `value` / `data`. Panics if not compliant.
+Preferred macros: encode intent `data` from an action name + args, then call the VE.
 
 ```rust
-require_trustline(&env, &sender, amount, &data);
+require_trustline!(env, sender, amount, "transfer"());
+
+require_trustline_addrs!(
+    env, sender, amount,
+    "transfer_to"(recipient),
+    [recipient],
+);
+
+require_trustline_adv!(
+    env, ValidationMode::Dapp, sender, amount,
+    "transfer_to"(recipient),
+    [recipient],
+);
 ```
 
-#### `require_trustline_addrs`
+The action string and argument order must match what the Trustline backend / WebSDK sends as `functionPrototype` + positional `args`.
+
+#### `require_trustline_raw`
+
+**Enforcing call** (low-level). Requires an approved intent for `sender` / `value` / `data`. Panics if not compliant.
+
+```rust
+require_trustline_raw(&env, &sender, amount, &data);
+```
+
+#### `require_trustline_addrs_raw`
 
 Same as above, plus an address list screened by policy / sanctions (e.g. recipient, token).
 
 ```rust
 let addresses = soroban_sdk::vec![&env, recipient.clone(), token.clone()];
-require_trustline_addrs(&env, &sender, amount, &data, &addresses);
+require_trustline_addrs_raw(&env, &sender, amount, &data, &addresses);
+```
+
+#### `require_trustline_adv_raw`
+
+Same as `require_trustline_addrs_raw`, plus an explicit [`ValidationMode`].
+
+```rust
+require_trustline_adv_raw(
+    &env, ValidationMode::Dapp, &sender, amount, &data, &addresses,
+);
 ```
 
 #### `check_trustline_status` / `check_status_addrs`
@@ -160,12 +196,13 @@ sha256(xdr(network_id, mode, sender, protocol, value, data))
 
 Backend and on-chain code **must** use the same function for reconciliation.
 
-#### `encode_call_data`
+#### `encode_call_data` / `encode_intent`
 
-Optional helper to build a stable `data` blob:
+Low-level helpers to build a stable `data` blob (prefer the `require_trustline*!` macros):
 
 ```rust
-let data = encode_call_data(&env, "pay", &args_bytes);
+let data = encode_intent(&env, "pay", (destination, amount));
+// or: encode_call_data(&env, "pay", &args_bytes);
 ```
 
 ### Types
@@ -186,7 +223,7 @@ Modes only affect the intent hash domain. Policy content stays off-chain.
 
 - **`Dapp`** (only supported mode for now) — Standard dapp validation
 
-Additional modes may be introduced later. Use `require_trustline_adv` / `check_status_adv` when you need an explicit mode; today that must be `Dapp`.
+Additional modes may be introduced later. Use `require_trustline_adv!` / `require_trustline_adv_raw` when you need an explicit mode; today that must be `Dapp`.
 
 ## Examples
 
@@ -264,7 +301,7 @@ Release history: [CHANGELOG.md](CHANGELOG.md).
 
 - Deploy the Validation Engine instance separately; configure its address in your `__constructor`
 - Always `require_auth` on the business `sender` before calling Trustline helpers
-- Include recipients / tokens in `require_trustline_addrs` when they matter to policy or sanctions
+- Include recipients / tokens in `require_trustline_addrs!` when they matter to policy or sanctions
 - Keep `data` canonical and stable for a given protected method — it is part of the intent id
 - Prefer upgrading the **VE instance** over forking logic into the SDK
 - For `TrustlineFirewall`: set the firewall as the target's admin/owner; never leave a backdoor admin on the target that bypasses the firewall
