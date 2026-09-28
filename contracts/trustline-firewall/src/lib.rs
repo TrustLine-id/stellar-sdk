@@ -93,7 +93,7 @@ impl TrustlineFirewall {
     /// Update target — owner only, Trustline-protected.
     pub fn set_target(env: Env, new_target: Address) {
         let owner = Self::require_owner(&env);
-        let data = encode_call_data(&env, "set_target", &new_target.clone().to_xdr(&env));
+        let data = Self::set_target_intent_data(env.clone(), new_target.clone());
         require_trustline(&env, &owner, 0, &data);
         env.storage().instance().set(&DataKey::Target, &new_target);
         bump_instance(&env);
@@ -103,7 +103,7 @@ impl TrustlineFirewall {
     /// Transfer firewall admin — owner only, Trustline-protected.
     pub fn set_owner(env: Env, new_owner: Address) {
         let owner = Self::require_owner(&env);
-        let data = encode_call_data(&env, "set_owner", &new_owner.clone().to_xdr(&env));
+        let data = Self::set_owner_intent_data(env.clone(), new_owner.clone());
         require_trustline(&env, &owner, 0, &data);
         env.storage().instance().set(&DataKey::Owner, &new_owner);
         bump_instance(&env);
@@ -117,8 +117,7 @@ impl TrustlineFirewall {
     /// Add or remove an operator allowed on the protected `forward` path.
     pub fn set_operator(env: Env, account: Address, is_operator: bool) {
         let owner = Self::require_owner(&env);
-        let payload = (account.clone(), is_operator).to_xdr(&env);
-        let data = encode_call_data(&env, "set_operator", &payload);
+        let data = Self::set_operator_intent_data(env.clone(), account.clone(), is_operator);
         require_trustline(&env, &owner, 0, &data);
         Self::set_operator_flag(&env, &account, is_operator);
         bump_instance(&env);
@@ -132,7 +131,7 @@ impl TrustlineFirewall {
     /// Allow or disallow unrestricted initiators on `forward`.
     pub fn set_public_forward(env: Env, enabled: bool) {
         let owner = Self::require_owner(&env);
-        let data = encode_call_data(&env, "set_public_forward", &enabled.to_xdr(&env));
+        let data = Self::set_public_forward_intent_data(env.clone(), enabled);
         require_trustline(&env, &owner, 0, &data);
         env.storage()
             .instance()
@@ -177,8 +176,7 @@ impl TrustlineFirewall {
         Self::require_forward_initiator(&env, &initiator);
         let target: Address = env.storage().instance().get(&DataKey::Target).unwrap();
 
-        let payload = (fn_name.clone(), args.clone()).to_xdr(&env);
-        let data = encode_call_data(&env, "forward", &payload);
+        let data = Self::forward_intent_data(env.clone(), fn_name.clone(), args.clone());
         require_trustline(&env, &initiator, 0, &data);
 
         bump_instance(&env);
