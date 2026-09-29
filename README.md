@@ -21,14 +21,14 @@ Add the SDK crate to your contract:
 
 ```toml
 [dependencies]
-trustline-sdk = "0.1"
+trustline-sdk = "0.2"
 soroban-sdk = "27"
 ```
 
 Or depend on a Git tag:
 
 ```toml
-trustline-sdk = { git = "https://github.com/TrustLine-id/stellar-sdk", tag = "v0.1.0" }
+trustline-sdk = { git = "https://github.com/TrustLine-id/stellar-sdk", tag = "v0.2.0" }
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.

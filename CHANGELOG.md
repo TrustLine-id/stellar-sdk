@@ -5,7 +5,7 @@ All notable changes to the **`trustline-sdk`** crate are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-29
 
 ### Added
 
@@ -46,4 +46,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deploy a Validation Engine instance separately ([stellar-validation-engine](https://github.com/TrustLine-id/stellar-validation-engine)); pass its contract id to `set_validation_engine` at construction.
 - End-to-end oracle → guarded invoke tests live in the validation-engine repository.
 
+[0.2.0]: https://github.com/TrustLine-id/stellar-sdk/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TrustLine-id/stellar-sdk/releases/tag/v0.1.0

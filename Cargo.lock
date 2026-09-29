@@ -1106,7 +1106,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "mock-validation-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
  "trustline-sdk",
@@ -1183,7 +1183,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payment-forwarder"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
  "trustline-sdk",
@@ -1265,7 +1265,7 @@ dependencies = [
 
 [[package]]
 name = "protected-counter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
 ]
@@ -1831,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "test-trustlined-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mock-validation-engine",
  "protected-counter",
@@ -1926,7 +1926,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "trustline-firewall"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
  "trustline-sdk",
@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "trustline-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "soroban-sdk",
 ]

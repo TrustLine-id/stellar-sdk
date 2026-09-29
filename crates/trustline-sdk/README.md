@@ -8,7 +8,7 @@ A Rust / Soroban SDK for protecting Stellar smart contracts from unauthorized ac
 
 ```toml
 [dependencies]
-trustline-sdk = "0.1"
+trustline-sdk = "0.2"
 soroban-sdk = "27"
 ```
 
